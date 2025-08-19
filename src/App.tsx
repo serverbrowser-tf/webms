@@ -610,7 +610,7 @@ function App() {
       const start = form.state.start;
       form.onChange({
         end,
-        start: start != null ? Math.max(start, end) : start,
+        start: start != null ? Math.min(start, end) : start,
       });
     }
   };
