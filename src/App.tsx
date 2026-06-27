@@ -311,18 +311,22 @@ function generateFfmpegCommands(
   outputFilename: string,
 ) {
   const vf = (() => {
-    const vfArr = [
-      "zscale=range=full:matrix=709:primaries=709:transfer=709,format=yuv420p:bt709:pc",
-    ];
+    let scaleSize = "w=iw:h=ih";
 
     if (metadata.width !== 0 && form.height) {
       const sizeChange =
         metadata.width !== form.width || metadata.height !== form.height;
 
       if (sizeChange) {
-        vfArr.push(`scale=-2:${form.height}`);
+        scaleSize = `w=-2:h=${form.height}`;
       }
     }
+    const scale = `scale=${scaleSize}:out_color_matrix=bt709:out_range=tv`;
+    const vfArr = [
+      scale,
+      "format=yuv420p",
+      "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709",
+    ];
 
     return `"${vfArr.join(",")}"`;
   })();
@@ -351,17 +355,6 @@ function generateFfmpegCommands(
       ffmpegCommand.push(`-r ${form.frameRate}`);
     }
   }
-  const pass1Command = [
-    ...ffmpegCommand,
-    "-c:v libvpx-vp9",
-    "-f webm",
-    "-pass 1",
-    '-passlogfile "$temp"',
-    "/dev/null",
-  ];
-  if (vf) {
-    ffmpegCommand.push(`-vf ${vf}`);
-  }
   if (bitrate) {
     const kilobits = Math.floor(bitrate / 1000);
     ffmpegCommand.push(`-b:v ${kilobits}k`);
@@ -369,12 +362,10 @@ function generateFfmpegCommands(
     ffmpegCommand.push(`-maxrate ${Math.floor(kilobits * 1.5)}k`);
     ffmpegCommand.push("-crf 10");
   }
-  if (form.disableAudio) {
-    ffmpegCommand.push("-an");
-  } else {
-    ffmpegCommand.push("-b:a 128k");
+  if (vf) {
+    ffmpegCommand.push(`-vf ${vf}`);
   }
-  ffmpegCommand.push(
+  const vp9Args = [
     "-quality good",
     "-speed 0",
     "-g 300",
@@ -384,7 +375,24 @@ function generateFfmpegCommands(
     "-enable-tpl 1",
     "-frame-parallel 1",
     "-c:v libvpx-vp9",
+    "-pix_fmt yuv420p",
     "-f webm",
+  ];
+  const pass1Command = [
+    ...ffmpegCommand,
+    "-an",
+    ...vp9Args,
+    "-pass 1",
+    '-passlogfile "$temp"',
+    "/dev/null",
+  ];
+  if (form.disableAudio) {
+    ffmpegCommand.push("-an");
+  } else {
+    ffmpegCommand.push("-b:a 128k");
+  }
+  ffmpegCommand.push(
+    ...vp9Args,
     '-passlogfile "$temp"',
     "-pass 2",
     "-fflags bitexact",
@@ -491,7 +499,7 @@ function App() {
       if (video) {
         video.addEventListener(
           "loadedmetadata",
-          function () {
+          function() {
             setMetadata({
               duration: this.duration,
               width: this.videoWidth,
@@ -824,7 +832,7 @@ function App() {
       </Sidebar>
       <Script
         data-script
-        onClick={function (e) {
+        onClick={function(e) {
           const target = e.target;
           if (
             target instanceof HTMLElement &&

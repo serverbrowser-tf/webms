@@ -3,7 +3,6 @@ import {
   useEffect,
   useState,
   type DependencyList,
-  type SetStateAction,
 } from "react";
 
 type EffectFn = (signal: AbortSignal) => void | Promise<void>;
